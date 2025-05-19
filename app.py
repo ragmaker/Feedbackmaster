@@ -2,18 +2,20 @@ import os
 import base64
 import tempfile
 import cv2
-from flask import Flask, request, render_template, jsonify, send_from_directory
+from flask import Flask, request, render_template, jsonify, send_from_directory, session
 from werkzeug.utils import secure_filename
 from openai import OpenAI
 from dotenv import load_dotenv
 from flask_cors import CORS
 from PIL import Image
 import io
+import uuid
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))  # Secret key for sessions
 # Simple CORS configuration
 CORS(app, supports_credentials=True)
 
@@ -27,6 +29,9 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi', 'mkv'}
+
+# Store chat sessions (in-memory for development, use a database in production)
+chat_sessions = {}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -108,6 +113,9 @@ def upload_video():
         file.save(filepath)
         
         try:
+            # Generate a session ID for this chat
+            session_id = str(uuid.uuid4())
+            
             # Extract frames from the video
             frames, timestamps, duration = extract_frames(filepath, num_frames=5)
             
@@ -138,28 +146,51 @@ def upload_video():
                     }
                 })
             
+            # System message
+            system_message = {
+                "role": "system",
+                "content": "You are a video analysis expert. Your task is to analyze frames from a video and provide a comprehensive description of what is happening in the video. always include the overall summary of the video in the analysis"
+            }
+            
+            # User message with the frames
+            user_message = {
+                "role": "user",
+                "content": message_content
+            }
+            
             # Get analysis from GPT-4 Vision
             response = client.chat.completions.create(
                 model="gpt-4o",  # Updated to current supported model
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a video analysis expert. Your task is to analyze frames from a video and provide a comprehensive description of what is happening in the video. always include the overall summary of the video in the analysis"
-                    },
-                    {
-                        "role": "user",
-                        "content": message_content
-                    }
-                ],
+                messages=[system_message, user_message],
                 max_tokens=1500
             )
+            
+            # Initialize chat session with history
+            assistant_response = response.choices[0].message.content
+            chat_sessions[session_id] = {
+                "frames": frames,
+                "timestamps": formatted_timestamps,
+                "filename": filename,
+                "duration": duration,
+                "history": [
+                    system_message,
+                    user_message,
+                    {"role": "assistant", "content": assistant_response}
+                ]
+            }
+            
+            # Store video frames for reuse
+            temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_frames.mp4")
+            cv2.VideoCapture(filepath).release()  # Close the video file
+            os.rename(filepath, temp_file_path)  # Rename to session ID
             
             # Clean up the uploaded file after processing
             if os.path.exists(filepath):
                 os.remove(filepath)
             
             return jsonify({
-                'analysis': response.choices[0].message.content
+                'analysis': assistant_response,
+                'session_id': session_id
             })
             
         except Exception as e:
@@ -169,6 +200,129 @@ def upload_video():
             return jsonify({'error': str(e)}), 500
     
     return jsonify({'error': 'Invalid file type'}), 400
+
+@app.route('/custom_analysis', methods=['POST'])
+def custom_analysis():
+    print("Received custom analysis request")
+    
+    if 'custom_prompt' not in request.form:
+        return jsonify({'error': 'No custom prompt provided'}), 400
+    
+    custom_prompt = request.form['custom_prompt']
+    session_id = request.form.get('session_id')
+    
+    # Check if we have a valid session ID
+    if not session_id or session_id not in chat_sessions:
+        # If no session ID or invalid session ID, try to process with uploaded video
+        if 'video' not in request.files:
+            return jsonify({'error': 'No video file provided and no active session'}), 400
+            
+        file = request.files['video']
+        if file.filename == '':
+            return jsonify({'error': 'No selected file'}), 400
+        
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(filepath)
+            
+            try:
+                # Create a new session ID
+                session_id = str(uuid.uuid4())
+                
+                # Extract frames from the video
+                frames, timestamps, duration = extract_frames(filepath, num_frames=5)
+                formatted_timestamps = [f"{int(t // 60):02d}:{int(t % 60):02d}" for t in timestamps]
+                
+                # Initialize the chat session
+                chat_sessions[session_id] = {
+                    "frames": frames,
+                    "timestamps": formatted_timestamps,
+                    "filename": filename,
+                    "duration": duration,
+                    "history": [
+                        {
+                            "role": "system",
+                            "content": "You are a video analysis expert. Your task is to analyze frames from a video and respond to the user's specific questions or follow their custom instructions about the video content."
+                        }
+                    ]
+                }
+                
+                # Store video frames for reuse
+                temp_file_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{session_id}_frames.mp4")
+                cv2.VideoCapture(filepath).release()  # Close the video file
+                os.rename(filepath, temp_file_path)  # Rename to session ID
+                
+            except Exception as e:
+                print(f"Error processing custom analysis request: {str(e)}")
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+                return jsonify({'error': str(e)}), 500
+                
+            # Clean up original file
+            if os.path.exists(filepath):
+                os.remove(filepath)
+        else:
+            return jsonify({'error': 'Invalid file type'}), 400
+    
+    # We now have a valid session
+    session_data = chat_sessions[session_id]
+    
+    # Prepare message content for GPT-4 Vision with custom prompt
+    message_content = [
+        {
+            "type": "text", 
+            "text": f"Regarding the video '{session_data['filename']}' with duration {int(session_data['duration'] // 60):02d}:{int(session_data['duration'] % 60):02d}, here's a new question or instruction from the user: \n\n{custom_prompt}"
+        }
+    ]
+    
+    # Add frames only for the first few custom prompts to avoid context length issues
+    if len(session_data['history']) < 8:  # Only include frames for first few interactions
+        # Add each frame to the message content
+        for i, (frame, timestamp) in enumerate(zip(session_data['frames'], session_data['timestamps'])):
+            message_content.append({
+                "type": "text",
+                "text": f"Frame {i+1} (at {timestamp}):"
+            })
+            message_content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{frame}"
+                }
+            })
+    
+    # Add the user's custom prompt to the history
+    session_data['history'].append({
+        "role": "user",
+        "content": message_content
+    })
+    
+    # Get analysis from GPT-4 Vision with conversation history
+    try:
+        # Only use last 10 messages to avoid exceeding context limits
+        recent_history = session_data['history'][-10:] if len(session_data['history']) > 10 else session_data['history']
+        
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=recent_history,
+            max_tokens=1500
+        )
+        
+        # Add assistant's response to history
+        assistant_response = response.choices[0].message.content
+        session_data['history'].append({
+            "role": "assistant",
+            "content": assistant_response
+        })
+        
+        return jsonify({
+            'analysis': assistant_response,
+            'session_id': session_id
+        })
+        
+    except Exception as e:
+        print(f"Error in GPT processing: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     print("Starting Flask application...")  # Debug print

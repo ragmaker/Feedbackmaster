@@ -3,16 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Content Analysis</title>
+    <title>Video Analysis Assistant</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-light: #818cf8;
+            --secondary-color: #1e293b;
+            --bg-gradient: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+        }
+        body {
+            min-height: 100vh;
+            background-color: #f9fafb;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .header-gradient {
+            background: var(--bg-gradient);
+        }
         .drop-zone {
-            border: 2px dashed #4a5568;
+            border: 2px dashed #c7d2fe;
             transition: all 0.3s ease;
+            background-color: #f5f7ff;
         }
         .drop-zone:hover {
-            border-color: #2d3748;
-            background-color: #f7fafc;
+            border-color: var(--primary-color);
+            background-color: #eff6ff;
         }
         .loading {
             display: none;
@@ -20,43 +36,214 @@
         .loading.active {
             display: block;
         }
+        .chat-messages {
+            max-height: 50vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        .user-message {
+            background-color: #e0e7ff;
+            border-radius: 1rem 1rem 0.25rem 1rem;
+            align-self: flex-end;
+            max-width: 85%;
+        }
+        .assistant-message {
+            background-color: white;
+            border-radius: 1rem 1rem 1rem 0.25rem;
+            align-self: flex-start;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            max-width: 85%;
+        }
+        .chip {
+            transition: all 0.2s ease;
+            border: 1px solid #e5e7eb;
+        }
+        .chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .analysis-container {
+            max-height: 60vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        .analysis-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .analysis-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .analysis-container::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 20px;
+        }
+        .send-btn {
+            transition: all 0.2s ease;
+        }
+        .send-btn:hover {
+            transform: translateY(-1px);
+        }
+        .pulse-animation {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+        @media (max-width: 768px) {
+            .mobile-full {
+                width: 100%;
+                margin-top: 1rem;
+            }
+        }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body>
+    <!-- Header -->
+    <header class="header-gradient text-white py-6 shadow-md">
+        <div class="container mx-auto px-4">
+            <h1 class="text-3xl md:text-4xl font-bold text-center">
+                <i class="fas fa-video mr-2"></i> Video Analysis Assistant
+            </h1>
+            <p class="text-center mt-2 text-indigo-100 max-w-2xl mx-auto">
+                Upload a video and get AI-powered insights with interactive follow-up questions
+            </p>
+        </div>
+    </header>
+
     <div class="container mx-auto px-4 py-8">
-        <h1 class="text-4xl font-bold text-center mb-2 text-gray-800">Video Content Analysis</h1>
-        <p class="text-center mb-8 text-gray-600">Upload a video for AI-powered frame-by-frame analysis</p>
-        
-        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
-            <div id="upload-container" class="drop-zone rounded-lg p-8 text-center cursor-pointer mb-6">
-                <input type="file" id="video-input" accept=".mp4,.mov,.avi,.mkv" class="hidden">
-                <div class="text-gray-600">
-                    <svg class="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-                    </svg>
-                    <p class="text-lg">Drag and drop your video here or click to select</p>
-                    <p class="text-sm mt-2">Supported formats: MP4, MOV, AVI, MKV</p>
-                    <p class="text-sm mt-1 text-blue-600">Maximum file size: 500MB</p>
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- Main Video Upload Panel -->
+            <div class="flex-1 bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="p-6 border-b border-gray-100">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-upload mr-2 text-indigo-500"></i> Video Upload & Analysis
+                    </h2>
+                </div>
+                
+                <div class="p-6">
+                    <div id="upload-container" class="drop-zone rounded-xl p-8 text-center cursor-pointer mb-6">
+                        <input type="file" id="video-input" accept=".mp4,.mov,.avi,.mkv" class="hidden">
+                        <div class="text-gray-600">
+                            <div class="mx-auto h-16 w-16 mb-4 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center">
+                                <i class="fas fa-cloud-upload-alt text-2xl"></i>
+                            </div>
+                            <p class="text-lg font-medium">Drag and drop your video here</p>
+                            <p class="text-sm mt-2">or click to browse files</p>
+                            <p class="text-xs mt-3 text-gray-500">Supported formats: MP4, MOV, AVI, MKV</p>
+                            <p class="text-xs mt-1 text-indigo-600">Maximum file size: 500MB</p>
+                        </div>
+                    </div>
+
+                    <div id="loading" class="loading text-center py-8">
+                        <div class="relative h-16 w-16 mx-auto mb-4">
+                            <div class="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+                            <div class="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
+                        </div>
+                        <p class="mt-4 text-lg font-medium text-gray-700">Processing your video...</p>
+                        <div class="mt-4 text-sm text-gray-500 max-w-md mx-auto grid grid-cols-2 gap-2">
+                            <div class="flex items-center">
+                                <div class="h-2 w-2 bg-indigo-500 rounded-full mr-2 pulse-animation"></div>
+                                <p>Extracting key frames</p>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="h-2 w-2 bg-indigo-500 rounded-full mr-2 pulse-animation"></div>
+                                <p>Analyzing visual content</p>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="h-2 w-2 bg-indigo-500 rounded-full mr-2 pulse-animation"></div>
+                                <p>Recognizing elements</p>
+                            </div>
+                            <div class="flex items-center">
+                                <div class="h-2 w-2 bg-indigo-500 rounded-full mr-2 pulse-animation"></div>
+                                <p>Generating description</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="result" class="hidden">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+                            <i class="fas fa-list-alt mr-2 text-indigo-500"></i> Analysis Results
+                        </h2>
+                        <div id="analysis-text" class="analysis-container bg-gray-50 rounded-xl p-6 text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
+                    </div>
                 </div>
             </div>
-
-            <div id="loading" class="loading text-center py-6">
-                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-                <p class="mt-4 text-gray-600">Processing your video...</p>
-                <div class="mt-2 text-sm text-gray-500 max-w-md mx-auto">
-                    <p class="mb-1">• Extracting key frames</p>
-                    <p class="mb-1">• Analyzing visual content</p>
-                    <p class="mb-1">• Generating detailed description</p>
-                    <p>This may take a minute for larger videos</p>
+            
+            <!-- Custom Prompt Chat Panel -->
+            <div class="md:w-2/5 bg-white rounded-xl shadow-lg overflow-hidden mobile-full">
+                <div class="p-6 border-b border-gray-100">
+                    <h2 class="text-xl font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-comments mr-2 text-indigo-500"></i> Interactive Chat
+                    </h2>
                 </div>
-            </div>
-
-            <div id="result" class="hidden">
-                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Video Analysis</h2>
-                <div id="analysis-text" class="bg-gray-50 rounded-lg p-4 text-gray-700 whitespace-pre-wrap"></div>
+                
+                <div id="chat-panel" class="hidden flex flex-col h-full">
+                    <div id="chat-messages" class="chat-messages p-4 flex-grow flex flex-col"></div>
+                    
+                    <div class="p-4 border-t border-gray-100">
+                        <div id="prompt-templates" class="mb-4">
+                            <h3 class="text-sm font-medium text-gray-700 mb-2">Quick Prompts:</h3>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="prompt-template chip px-3 py-1.5 bg-indigo-50 text-indigo-700 text-sm rounded-full hover:bg-indigo-100 transition-colors">
+                                    <i class="fas fa-search-plus mr-1"></i> Identify objects
+                                </button>
+                                <button class="prompt-template chip px-3 py-1.5 bg-indigo-50 text-indigo-700 text-sm rounded-full hover:bg-indigo-100 transition-colors">
+                                    <i class="fas fa-smile mr-1"></i> Scene emotions
+                                </button>
+                                <button class="prompt-template chip px-3 py-1.5 bg-indigo-50 text-indigo-700 text-sm rounded-full hover:bg-indigo-100 transition-colors">
+                                    <i class="fas fa-clock mr-1"></i> Activity timeline
+                                </button>
+                                <button class="prompt-template chip px-3 py-1.5 bg-indigo-50 text-indigo-700 text-sm rounded-full hover:bg-indigo-100 transition-colors">
+                                    <i class="fas fa-lightbulb mr-1"></i> Key insights
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex">
+                            <input id="custom-prompt" type="text" placeholder="Ask about the video or provide custom instructions..." 
+                                   class="flex-1 px-4 py-3 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                            <button id="send-prompt" class="send-btn bg-indigo-600 text-white px-4 py-3 rounded-r-lg hover:bg-indigo-700 flex items-center justify-center">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="chat-placeholder" class="text-center py-16 px-6 h-full flex items-center justify-center">
+                    <div>
+                        <div class="mx-auto h-16 w-16 bg-indigo-100 text-indigo-400 rounded-full flex items-center justify-center mb-4">
+                            <i class="fas fa-comment-dots text-2xl"></i>
+                        </div>
+                        <p class="text-gray-500 mb-2">Upload a video to start a conversation</p>
+                        <p class="text-xs text-gray-400">Ask specific questions about your video content</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+    <footer class="mt-12 bg-gray-800 text-gray-300 py-6">
+        <div class="container mx-auto px-4 text-center">
+            <p class="text-sm">© 2025 Video Analysis Assistant | Powered by AI</p>
+        </div>
+    </footer>
 
     <script>
         const dropZone = document.getElementById('upload-container');
@@ -64,20 +251,30 @@
         const loading = document.getElementById('loading');
         const result = document.getElementById('result');
         const analysisText = document.getElementById('analysis-text');
+        const chatPanel = document.getElementById('chat-panel');
+        const chatPlaceholder = document.getElementById('chat-placeholder');
+        const chatMessages = document.getElementById('chat-messages');
+        const customPrompt = document.getElementById('custom-prompt');
+        const sendPromptBtn = document.getElementById('send-prompt');
+        const promptTemplates = document.querySelectorAll('.prompt-template');
+        
+        let currentVideoFile = null;
+        let lastAnalysisResponse = null;
+        let sessionId = null;
 
         // Handle drag and drop
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropZone.classList.add('bg-gray-50');
+            dropZone.classList.add('bg-indigo-50');
         });
 
         dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('bg-gray-50');
+            dropZone.classList.remove('bg-indigo-50');
         });
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
-            dropZone.classList.remove('bg-gray-50');
+            dropZone.classList.remove('bg-indigo-50');
             const file = e.dataTransfer.files[0];
             handleFile(file);
         });
@@ -94,6 +291,9 @@
 
         function handleFile(file) {
             if (!file) return;
+            
+            currentVideoFile = file;
+            sessionId = null; // Reset session ID for new video
 
             // Check file size (500MB limit)
             const maxSize = 500 * 1024 * 1024; // 500MB in bytes
@@ -108,6 +308,8 @@
             // Show loading state
             loading.classList.add('active');
             result.classList.add('hidden');
+            chatPanel.classList.add('hidden');
+            chatPlaceholder.classList.remove('hidden');
 
             fetch('/upload', {
                 method: 'POST',
@@ -122,6 +324,18 @@
                     analysisText.textContent = `Error: ${data.error}`;
                 } else {
                     analysisText.textContent = data.analysis;
+                    lastAnalysisResponse = data.analysis;
+                    sessionId = data.session_id; // Store the session ID
+                    
+                    // Show chat panel
+                    chatPanel.classList.remove('hidden');
+                    chatPlaceholder.classList.add('hidden');
+                    
+                    // Clear previous chat messages
+                    chatMessages.innerHTML = '';
+                    
+                    // Add initial message
+                    addMessage('assistant', 'I\'ve analyzed your video. Ask me any specific questions about it or provide custom prompts for further analysis.');
                 }
             })
             .catch(error => {
@@ -129,6 +343,101 @@
                 result.classList.remove('hidden');
                 analysisText.textContent = `Error: ${error.message}`;
             });
+        }
+        
+        // Handle sending custom prompts
+        sendPromptBtn.addEventListener('click', () => {
+            sendCustomPrompt();
+        });
+        
+        customPrompt.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendCustomPrompt();
+            }
+        });
+        
+        // Handle prompt templates
+        promptTemplates.forEach(btn => {
+            btn.addEventListener('click', () => {
+                customPrompt.value = btn.textContent.trim();
+                sendCustomPrompt();
+            });
+        });
+        
+        function sendCustomPrompt() {
+            const prompt = customPrompt.value.trim();
+            if (!prompt) return;
+            
+            // Add user message to chat
+            addMessage('user', prompt);
+            
+            // Clear input
+            customPrompt.value = '';
+            
+            // Create form data with custom prompt and session ID if available
+            const formData = new FormData();
+            
+            // If we have a session ID, use it; otherwise, send the video file
+            if (sessionId) {
+                formData.append('session_id', sessionId);
+            } else if (currentVideoFile) {
+                formData.append('video', currentVideoFile);
+            } else {
+                addMessage('assistant', 'Error: No video has been uploaded');
+                return;
+            }
+            
+            formData.append('custom_prompt', prompt);
+            
+            // Show loading message
+            const loadingId = `loading-${Date.now()}`;
+            addMessage('assistant', '<div class="flex items-center"><div class="mr-2 h-3 w-3 bg-indigo-500 rounded-full animate-pulse"></div> Analyzing...</div>', loadingId, true);
+            
+            // Send to server
+            fetch('/custom_analysis', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Remove loading message
+                document.getElementById(loadingId)?.remove();
+                
+                if (data.error) {
+                    addMessage('assistant', `Error: ${data.error}`);
+                } else {
+                    addMessage('assistant', data.analysis);
+                    
+                    // Store the session ID if returned
+                    if (data.session_id) {
+                        sessionId = data.session_id;
+                    }
+                }
+            })
+            .catch(error => {
+                // Remove loading message
+                document.getElementById(loadingId)?.remove();
+                addMessage('assistant', `Error: ${error.message}`);
+            });
+        }
+        
+        function addMessage(role, content, id = '', isHtml = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `mb-4 ${role === 'user' ? 'self-end' : 'self-start'}`;
+            if (id) messageDiv.id = id;
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = role === 'user' ? 'user-message p-3 px-4' : 'assistant-message p-3 px-4';
+            
+            if (isHtml) {
+                messageContent.innerHTML = content;
+            } else {
+                messageContent.textContent = content;
+            }
+            
+            messageDiv.appendChild(messageContent);
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         }
     </script>
 </body>
