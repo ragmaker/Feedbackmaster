@@ -121,7 +121,7 @@ def upload_video():
                     "text": f"I'm sending you 5 frames from a video named '{filename}' with a duration of {int(duration // 60):02d}:{int(duration % 60):02d}. "
                            f"The frames were taken at the following timestamps: {', '.join(formatted_timestamps)}. "
                            f"Please analyze these frames and provide a comprehensive analysis of what is happening in this video. "
-                           f"Describe the scenes, actions, people, objects, and any other notable elements visible in the frames."
+                           f"Describe the scenes, actions, people, objects, and any other notable elements visible in the frames. always include the overall summary of the video in the analysis"
                 }
             ]
             
@@ -144,7 +144,7 @@ def upload_video():
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are a video analysis expert. Your task is to analyze frames from a video and provide a comprehensive description of what is happening in the video."
+                        "content": "You are a video analysis expert. Your task is to analyze frames from a video and provide a comprehensive description of what is happening in the video. always include the overall summary of the video in the analysis"
                     },
                     {
                         "role": "user",
