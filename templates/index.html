@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Content Analysis</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .drop-zone {
+            border: 2px dashed #4a5568;
+            transition: all 0.3s ease;
+        }
+        .drop-zone:hover {
+            border-color: #2d3748;
+            background-color: #f7fafc;
+        }
+        .loading {
+            display: none;
+        }
+        .loading.active {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-2 text-gray-800">Video Content Analysis</h1>
+        <p class="text-center mb-8 text-gray-600">Upload a video for AI-powered frame-by-frame analysis</p>
+        
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-6">
+            <div id="upload-container" class="drop-zone rounded-lg p-8 text-center cursor-pointer mb-6">
+                <input type="file" id="video-input" accept=".mp4,.mov,.avi,.mkv" class="hidden">
+                <div class="text-gray-600">
+                    <svg class="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <p class="text-lg">Drag and drop your video here or click to select</p>
+                    <p class="text-sm mt-2">Supported formats: MP4, MOV, AVI, MKV</p>
+                    <p class="text-sm mt-1 text-blue-600">Maximum file size: 500MB</p>
+                </div>
+            </div>
+
+            <div id="loading" class="loading text-center py-6">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+                <p class="mt-4 text-gray-600">Processing your video...</p>
+                <div class="mt-2 text-sm text-gray-500 max-w-md mx-auto">
+                    <p class="mb-1">• Extracting key frames</p>
+                    <p class="mb-1">• Analyzing visual content</p>
+                    <p class="mb-1">• Generating detailed description</p>
+                    <p>This may take a minute for larger videos</p>
+                </div>
+            </div>
+
+            <div id="result" class="hidden">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-800">Video Analysis</h2>
+                <div id="analysis-text" class="bg-gray-50 rounded-lg p-4 text-gray-700 whitespace-pre-wrap"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('upload-container');
+        const videoInput = document.getElementById('video-input');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const analysisText = document.getElementById('analysis-text');
+
+        // Handle drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('bg-gray-50');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('bg-gray-50');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('bg-gray-50');
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+
+        // Handle click to upload
+        dropZone.addEventListener('click', () => {
+            videoInput.click();
+        });
+
+        videoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (!file) return;
+
+            // Check file size (500MB limit)
+            const maxSize = 500 * 1024 * 1024; // 500MB in bytes
+            if (file.size > maxSize) {
+                alert('File size exceeds the 500MB limit. Please choose a smaller file.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('video', file);
+
+            // Show loading state
+            loading.classList.add('active');
+            result.classList.add('hidden');
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.classList.remove('active');
+                result.classList.remove('hidden');
+                
+                if (data.error) {
+                    analysisText.textContent = `Error: ${data.error}`;
+                } else {
+                    analysisText.textContent = data.analysis;
+                }
+            })
+            .catch(error => {
+                loading.classList.remove('active');
+                result.classList.remove('hidden');
+                analysisText.textContent = `Error: ${error.message}`;
+            });
+        }
+    </script>
+</body>
+</html> 
