@@ -39,7 +39,7 @@
             display: block;
         }
         .chat-messages {
-            max-height: calc(100vh - 250px);
+            max-height: calc(100vh - 250px); /* Old value, will be superseded by flex-grow in new structure */
             overflow-y: auto;
             scrollbar-width: thin;
             scrollbar-color: #cbd5e1 transparent;
@@ -139,14 +139,17 @@
             max-width: 600px;
         }
         .prompt-panel {
-            height: calc(100vh - 180px);
+            /* height: calc(100vh - 180px); */ /* Removing fixed vh-based height */
+            height: calc(100% - 50px); /* Adjust based on its parent and internal header; 50px is an estimate for the header part */
             display: flex;
             flex-direction: column;
         }
         .prompt-suggestions {
-            overflow-y: auto;
-            flex-shrink: 1;
-            max-height: 40px;
+            /* overflow-y: auto; */ /* Removed */
+            /* flex-shrink: 1; */ /* Changed */
+            flex-shrink: 0; /* Allow it to take needed space */
+            /* max-height: 40px; */ /* Removed */
+            /* Chips will wrap naturally if they exceed width */
         }
         .prompt-input-container {
             margin-top: auto;
@@ -219,10 +222,20 @@
 <body>
     <!-- Header - Compact -->
     <header class="header-gradient text-white py-3 shadow-md compact-header">
-        <div class="container mx-auto px-4">
-            <h1 class="text-2xl font-bold text-center">
-                <i class="fas fa-video mr-2"></i> Video Analysis Assistant
-            </h1>
+        <div class="container mx-auto px-4 flex justify-between items-center">
+            <div class="flex items-center">
+                <a href="/" class="text-white hover:text-indigo-100 mr-4">
+                    <i class="fas fa-home text-xl"></i>
+                </a>
+                <h1 class="text-2xl font-bold text-center">
+                    <i class="fas fa-video mr-2"></i> Video Analysis Assistant
+                </h1>
+            </div>
+            <div>
+                <button id="batch-process-btn" class="text-xs bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded-lg flex items-center">
+                    <i class="fas fa-layer-group mr-1"></i> Batch Process
+                </button>
+            </div>
         </div>
     </header>
 
@@ -254,6 +267,9 @@
                         <i class="fas fa-upload mr-2 text-indigo-500"></i> Video Analysis
                     </h2>
                     <div id="result-actions" class="flex gap-2 hidden">
+                        <button id="back-to-upload" class="text-xs flex items-center px-2 py-1 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-arrow-left mr-1"></i> New Upload
+                        </button>
                         <button id="export-pdf" class="text-xs flex items-center px-2 py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">
                             <i class="fas fa-print mr-1"></i> PDF
                         </button>
@@ -372,16 +388,6 @@
                         </div>
                     </div>
                 </div>
-                
-                <div id="chat-placeholder" class="flex items-center justify-center h-full">
-                    <div class="text-center p-4">
-                        <div class="mx-auto h-14 w-14 bg-indigo-100 text-indigo-400 rounded-full flex items-center justify-center mb-3">
-                            <i class="fas fa-comment-dots text-xl"></i>
-                        </div>
-                        <p class="text-gray-500 mb-2">Upload a video to start</p>
-                        <p class="text-xs text-gray-400">Ask questions about the content</p>
-                    </div>
-                </div>
             </div>
         </div>
     </div>
@@ -394,6 +400,241 @@
 
     <!-- Toast container for notifications -->
     <div id="toast-container" class="toast-container"></div>
+    
+    <!-- Batch Processing Modal -->
+    <div id="batch-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
+            <div class="header-gradient text-white py-3 px-4 flex justify-between items-center">
+                <h3 class="font-semibold"><i class="fas fa-layer-group mr-2"></i> Batch Video Processing</h3>
+                <button id="close-batch-modal" class="text-white hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <!-- Scrollable Content Wrapper -->
+            <div class="overflow-y-auto" style="max-height: 75vh;"> 
+                <div class="p-5">
+                    <p class="text-sm text-gray-600 mb-4">Process multiple videos simultaneously for analysis. The batch processor can handle up to 15 videos.</p>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Select Multiple Video Files</label>
+                        <div class="mt-2 border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 transition-colors" id="batch-drop-zone">
+                            <input type="file" id="batch-file-input" accept=".mp4,.mov,.avi,.mkv" multiple class="hidden">
+                            <div class="mx-auto h-12 w-12 mb-2 bg-indigo-100 text-indigo-500 rounded-full flex items-center justify-center">
+                                <i class="fas fa-film text-xl"></i>
+                            </div>
+                            <p class="mb-1">Drop videos here</p>
+                            <p class="text-gray-500 text-sm mb-3">or</p>
+                            <button id="batch-browse-btn" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg transition-colors">
+                                <i class="fas fa-file-upload mr-2"></i> Browse Files
+                            </button>
+                        </div>
+                        
+                        <!-- Selected files container -->
+                        <div id="selected-files-container" class="mt-4 border rounded-lg p-3 bg-gray-50">
+                            <h4 class="text-sm font-medium mb-2 flex justify-between">
+                                <span>Selected Files (<span id="selected-files-count">0</span>):</span>
+                                <button id="clear-files-btn" class="text-xs text-red-600 hover:text-red-800">
+                                    <i class="fas fa-times-circle mr-1"></i> Clear All
+                                </button>
+                            </h4>
+                            <div id="selected-files-list" class="max-h-40 overflow-y-auto divide-y divide-gray-200">
+                                <div class="py-2 text-gray-500 text-center"><i class="fas fa-info-circle mr-1"></i> No files selected</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Supported formats section -->
+                        <div class="mt-3 p-3 bg-blue-50 rounded-lg">
+                            <p class="text-xs font-medium text-blue-700 mb-1">
+                                <i class="fas fa-file-video mr-1"></i> Supported Video Formats
+                            </p>
+                            <div class="flex flex-wrap gap-1 mb-2">
+                                <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">.mp4</span>
+                                <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">.mov</span>
+                                <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">.avi</span>
+                                <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">.mkv</span>
+                            </div>
+                            <p class="text-xs text-blue-800">Only these video formats are supported for processing.</p>
+                            
+                            <button id="check-file-type-btn" class="mt-2 px-3 py-1.5 text-xs bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-lg transition-colors">
+                                <i class="fas fa-question-circle mr-1"></i> Check File Type
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center mb-4">
+                        <input type="checkbox" id="cleanup-files" class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                        <label for="cleanup-files" class="ml-2 block text-sm text-gray-700">Clean up files after processing</label>
+                    </div>
+                    
+                    <div class="flex justify-between items-center mt-6">
+                        <div class="text-xs text-gray-500">Max 15 videos (.mp4, .mov, .avi, .mkv)</div>
+                        <button id="start-batch-btn" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Start Processing
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Batch Status Section (hidden initially) -->
+                <div id="batch-status-section" class="border-t border-gray-200 p-5 hidden">
+                    <h4 class="font-medium text-gray-800 mb-2 flex items-center">
+                        <i class="fas fa-tasks mr-2 text-indigo-500"></i> Processing Status
+                    </h4>
+                    <div id="batch-status-container" class="text-sm">
+                        <div class="flex justify-between mb-2">
+                            <span>Batch ID:</span>
+                            <span id="batch-id" class="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded">N/A</span>
+                        </div>
+                        <div class="flex justify-between mb-2">
+                            <span>Total Videos:</span>
+                            <span id="total-videos">0</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div class="bg-green-50 rounded p-2 text-center">
+                                <div id="completed-count" class="font-semibold text-green-700">0</div>
+                                <div class="text-xs text-green-600">Completed</div>
+                            </div>
+                            <div class="bg-blue-50 rounded p-2 text-center">
+                                <div id="in-progress-count" class="font-semibold text-blue-700">0</div>
+                                <div class="text-xs text-blue-600">In Progress</div>
+                            </div>
+                            <div class="bg-purple-50 rounded p-2 text-center">
+                                <div id="queued-count" class="font-semibold text-purple-700">0</div>
+                                <div class="text-xs text-purple-600">Queued</div>
+                            </div>
+                            <div class="bg-red-50 rounded p-2 text-center">
+                                <div id="failed-count" class="font-semibold text-red-700">0</div>
+                                <div class="text-xs text-red-600">Failed</div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 max-h-40 overflow-y-auto" id="job-list-container">
+                            <div class="text-xs text-gray-500 mb-2">Processing jobs:</div>
+                            <ul id="job-list" class="space-y-2 text-xs"><li class="text-gray-500 p-3 text-center">No active processing jobs.</li></ul>
+                        </div>
+                        
+                        <div class="flex justify-between items-center mt-4">
+                            <button id="view-results-btn" class="px-3 py-1.5 bg-indigo-100 text-indigo-700 text-xs rounded hover:bg-indigo-200 hidden">
+                                View Results
+                            </button>
+                            <button id="refresh-status-btn" class="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200">
+                                <i class="fas fa-sync-alt mr-1"></i> Refresh Status
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- End Scrollable Content Wrapper -->
+        </div>
+    </div>
+
+    <!-- Batch Results Modal -->
+    <div id="batch-results-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 overflow-hidden h-3/4 flex flex-col">
+            <div class="header-gradient text-white py-3 px-4 flex justify-between items-center">
+                <h3 class="font-semibold"><i class="fas fa-list-alt mr-2"></i> Batch Processing Results</h3>
+                <button id="close-results-modal" class="text-white hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-4 flex flex-col h-full overflow-hidden">
+                <div class="text-sm text-gray-600 mb-4">
+                    Select a video from the list below to view its analysis results.
+                </div>
+                
+                <div class="flex h-full flex-grow overflow-hidden">
+                    <!-- Video list sidebar -->
+                    <div class="w-1/3 border-r border-gray-200 pr-4 overflow-y-auto">
+                        <h4 class="font-medium text-gray-700 mb-2">Processed Videos</h4>
+                        <div id="batch-videos-list" class="space-y-2">
+                            <!-- Video items will be populated here -->
+                            <div class="text-sm text-gray-400 italic">No videos processed yet</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Analysis content -->
+                    <div class="w-2/3 pl-4 overflow-hidden flex flex-col">
+                        <div id="batch-analysis-placeholder" class="flex-grow flex items-center justify-center">
+                            <div class="text-center text-gray-400">
+                                <i class="fas fa-file-alt text-3xl mb-2"></i>
+                                <p>Select a video to view its analysis</p>
+                            </div>
+                        </div>
+                        <div id="batch-analysis-content" class="hidden flex-grow overflow-y-auto">
+                            <h4 id="batch-video-title" class="font-medium text-gray-800 mb-2"></h4>
+                            <div id="batch-analysis-text" class="text-sm bg-gray-50 p-4 rounded-lg whitespace-pre-wrap"></div>
+                        </div>
+                        <div class="flex justify-end mt-4 pt-2 border-t border-gray-100">
+                            <button id="batch-copy-btn" class="text-xs flex items-center mr-2 px-2 py-1 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:opacity-50" disabled>
+                                <i class="fas fa-copy mr-1"></i> Copy
+                            </button>
+                            <button id="batch-export-btn" class="text-xs flex items-center px-2 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 disabled:opacity-50" disabled>
+                                <i class="fas fa-file-alt mr-1"></i> Export
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Troubleshooting Modal -->
+    <div id="troubleshoot-modal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 overflow-hidden">
+            <div class="header-gradient text-white py-3 px-4 flex justify-between items-center">
+                <h3 class="font-semibold"><i class="fas fa-tools mr-2"></i> Batch Processing Troubleshooting</h3>
+                <button id="close-troubleshoot-modal" class="text-white hover:text-gray-200">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-5">
+                <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700" id="troubleshoot-error-message">
+                                Batch processing encountered an error.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <h4 class="font-medium text-lg mb-3">Common Issues & Solutions</h4>
+                
+                <div class="space-y-4">
+                    <div class="border-b pb-3">
+                        <h5 class="font-medium text-gray-700">Batch Processor Service Not Running</h5>
+                        <p class="text-sm text-gray-600 mb-2">The Go batch processor service must be running separately.</p>
+                        <div class="bg-gray-50 p-3 rounded text-xs font-mono">
+                            cd batch-processor && go run main.go
+                        </div>
+                    </div>
+                    
+                    <div class="border-b pb-3">
+                        <h5 class="font-medium text-gray-700">Folder Path Issues</h5>
+                        <p class="text-sm text-gray-600 mb-2">Make sure the folder path:</p>
+                        <ul class="text-sm text-gray-600 list-disc pl-5 space-y-1">
+                            <li>Is an absolute path</li>
+                            <li>Exists on the server (not just on your local machine)</li>
+                            <li>Has proper read/write permissions</li>
+                            <li>Contains video files (.mp4, .mov, .avi, .mkv)</li>
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <h5 class="font-medium text-gray-700">Too Many Files</h5>
+                        <p class="text-sm text-gray-600">The batch processor has a maximum limit of 15 video files per folder.</p>
+                    </div>
+                </div>
+                
+                <div class="mt-5 flex justify-end">
+                    <button id="retry-batch-btn" class="bg-indigo-600 text-white text-sm py-2 px-4 rounded-lg hover:bg-indigo-700">
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const dropZone = document.getElementById('upload-container');
@@ -411,13 +652,342 @@
         const skipContextBtn = document.getElementById('skip-context');
         const resultActions = document.getElementById('result-actions');
         
+        // Batch processing elements
+        const batchProcessBtn = document.getElementById('batch-process-btn');
+        const batchModal = document.getElementById('batch-modal');
+        const closeBatchModalBtn = document.getElementById('close-batch-modal');
+        const startBatchBtn = document.getElementById('start-batch-btn');
+        const batchStatusSection = document.getElementById('batch-status-section');
+        const refreshStatusBtn = document.getElementById('refresh-status-btn');
+        const viewResultsBtn = document.getElementById('view-results-btn');
+        const batchResultsModal = document.getElementById('batch-results-modal');
+        const closeResultsModalBtn = document.getElementById('close-results-modal');
+        const batchAnalysisPlaceholder = document.getElementById('batch-analysis-placeholder');
+        const batchAnalysisContent = document.getElementById('batch-analysis-content');
+        const batchVideoTitle = document.getElementById('batch-video-title');
+        const batchAnalysisText = document.getElementById('batch-analysis-text');
+        const batchCopyBtn = document.getElementById('batch-copy-btn');
+        const batchExportBtn = document.getElementById('batch-export-btn');
+        const browseFolderBtn = document.getElementById('browse-folder-btn');
+        const folderFileInput = document.getElementById('folder-file-input');
+        const folderPathInput = document.getElementById('folder-path');
+        const folderDropZone = document.getElementById('folder-drop-zone');
+        const troubleshootModal = document.getElementById('troubleshoot-modal');
+        const closeTroubleshootModalBtn = document.getElementById('close-troubleshoot-modal');
+        const retryBatchBtn = document.getElementById('retry-batch-btn');
+        const troubleshootErrorMessage = document.getElementById('troubleshoot-error-message');
+        const rememberPathCheckbox = document.getElementById('remember-path');
+        const savedPathsDatalist = document.getElementById('saved-paths');
+        
         let currentVideoFile = null;
         let lastAnalysisResponse = null;
         let sessionId = null;
+        let currentBatchId = null;
+        let batchStatusInterval = null;
+        let savedPaths = [];
 
         // For initial state, show placeholder
         const analysisPlaceholder = document.getElementById('analysis-placeholder');
         const uploadPanel = document.getElementById('upload-panel');
+        
+        // Load saved paths if available
+        function loadSavedPaths() {
+            const savedPathsStr = localStorage.getItem('batchSavedPaths');
+            if (savedPathsStr) {
+                try {
+                    savedPaths = JSON.parse(savedPathsStr);
+                    updateSavedPathsList();
+                } catch (e) {
+                    console.error('Error loading saved paths', e);
+                    savedPaths = [];
+                }
+            }
+        }
+        
+        // Save path to localStorage if checkbox is checked
+        function savePathIfNeeded(path) {
+            if (rememberPathCheckbox.checked && path) {
+                // Don't add duplicates
+                if (!savedPaths.includes(path)) {
+                    savedPaths.push(path);
+                    // Keep only the most recent 10 paths
+                    if (savedPaths.length > 10) {
+                        savedPaths.shift();
+                    }
+                    localStorage.setItem('batchSavedPaths', JSON.stringify(savedPaths));
+                    updateSavedPathsList();
+                }
+            }
+        }
+        
+        // Update the datalist with saved paths
+        function updateSavedPathsList() {
+            savedPathsDatalist.innerHTML = '';
+            savedPaths.forEach(path => {
+                const option = document.createElement('option');
+                option.value = path;
+                savedPathsDatalist.appendChild(option);
+            });
+        }
+        
+        // Load saved paths on page load
+        loadSavedPaths();
+        
+        // --- Batch Processing Functions ---
+        
+        // Show/hide batch modal
+        batchProcessBtn.addEventListener('click', () => {
+            // Reset state every time the modal is opened
+            console.log('[Batch] Opening batch modal, resetting state.');
+            currentBatchId = null;
+            batchFiles = [];
+            if (batchFileInput) {
+                batchFileInput.value = ''; // Clear the file input
+            }
+            updateSelectedFilesList(); // This will show "No files selected"
+
+            if (batchStatusSection) {
+                batchStatusSection.classList.add('hidden'); // Hide status of any previous batch
+            }
+            if (viewResultsBtn) {
+                viewResultsBtn.classList.add('hidden'); // Hide view results button
+            }
+            
+            // Clear any previous polling interval if it exists
+            if (batchStatusInterval) {
+                clearInterval(batchStatusInterval);
+                batchStatusInterval = null;
+                console.log('[Batch] Cleared existing status polling interval.');
+            }
+
+            // Reset the displayed counts and batch ID in the UI to their defaults
+            const batchIdEl = document.getElementById('batch-id');
+            if (batchIdEl) batchIdEl.textContent = 'N/A';
+            const totalVideosEl = document.getElementById('total-videos');
+            if (totalVideosEl) totalVideosEl.textContent = '0';
+            const completedEl = document.getElementById('completed-count');
+            if (completedEl) completedEl.textContent = '0';
+            const inProgressEl = document.getElementById('in-progress-count');
+            if (inProgressEl) inProgressEl.textContent = '0';
+            const queuedEl = document.getElementById('queued-count');
+            if (queuedEl) queuedEl.textContent = '0';
+            const failedEl = document.getElementById('failed-count');
+            if (failedEl) failedEl.textContent = '0';
+            const jobList = document.getElementById('job-list');
+            if (jobList) jobList.innerHTML = '<li class="text-gray-500 p-3 text-center">No active processing jobs.</li>';
+
+            batchModal.classList.remove('hidden');
+        });
+        
+        closeBatchModalBtn.addEventListener('click', () => {
+            batchModal.classList.add('hidden');
+        });
+        
+        // Close modal when clicking outside
+        batchModal.addEventListener('click', (e) => {
+            if (e.target === batchModal) {
+                batchModal.classList.add('hidden');
+            }
+        });
+        
+        // Refresh batch status manually
+        refreshStatusBtn.addEventListener('click', () => {
+            if (currentBatchId) {
+                fetchBatchStatus(currentBatchId);
+            }
+        });
+        
+        // Start polling for batch status updates
+        function startStatusPolling() {
+            console.log('[Batch] Starting status polling. Current Batch ID:', currentBatchId);
+            // Clear any existing interval
+            if (batchStatusInterval) {
+                clearInterval(batchStatusInterval);
+            }
+            
+            // Poll every 5 seconds
+            batchStatusInterval = setInterval(() => {
+                if (currentBatchId) {
+                    console.log('[Batch] Polling for status of Batch ID:', currentBatchId);
+                    fetchBatchStatus(currentBatchId);
+                } else {
+                    console.log('[Batch] No currentBatchId, stopping polling.');
+                    clearInterval(batchStatusInterval);
+                }
+            }, 5000);
+        }
+        
+        // Fetch batch status from server
+        function fetchBatchStatus(batchId) {
+            console.log('[Batch] Fetching status for Batch ID:', batchId);
+            fetch(`/batch/status/${batchId}`)
+            .then(response => {
+                if (!response.ok) {
+                    console.error('[Batch] Error response from /batch/status:', response);
+                    throw new Error(`Error fetching status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('[Batch] Received data from /batch/status:', data);
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    console.error('[Batch] Error in status data:', data.error);
+                    return;
+                }
+                
+                // Update status counts
+                const completedEl = document.getElementById('completed-count');
+                const inProgressEl = document.getElementById('in-progress-count');
+                const queuedEl = document.getElementById('queued-count');
+                const failedEl = document.getElementById('failed-count');
+
+                if (completedEl) completedEl.textContent = data.completed_jobs !== undefined ? data.completed_jobs : 'N/A';
+                if (inProgressEl) inProgressEl.textContent = data.in_progress_jobs !== undefined ? data.in_progress_jobs : 'N/A';
+                if (queuedEl) queuedEl.textContent = data.queued_jobs !== undefined ? data.queued_jobs : 'N/A';
+                if (failedEl) failedEl.textContent = data.failed_jobs !== undefined ? data.failed_jobs : 'N/A';
+                
+                // Update job list
+                console.log('[Batch] Calling updateJobList with jobs:', data.job_statuses);
+                updateJobList(data.job_statuses);
+                
+                // If all jobs are complete or failed, stop polling
+                if (data.in_progress_jobs === 0 && data.queued_jobs === 0) {
+                    console.log('[Batch] All jobs processed. Stopping polling for Batch ID:', batchId);
+                    if (batchStatusInterval) {
+                        clearInterval(batchStatusInterval);
+                    }
+                    
+                    // Show view results button if there are completed jobs
+                    if (data.completed_jobs > 0 && viewResultsBtn) {
+                        viewResultsBtn.classList.remove('hidden');
+                    }
+                    
+                    showToast('Batch processing complete', 'success');
+                }
+            })
+            .catch(error => {
+                showToast('Error fetching status: ' + error.message, 'error');
+                console.error('[Batch] Catch block in fetchBatchStatus:', error);
+            });
+        }
+        
+        // Show troubleshooting modal with specific error message
+        function showTroubleshootingModal(errorMessage) {
+            // Set the error message
+            troubleshootErrorMessage.textContent = errorMessage || 'Batch processing encountered an error.';
+            
+            // Show the modal
+            troubleshootModal.classList.remove('hidden');
+        }
+        
+        // Close troubleshooting modal
+        closeTroubleshootModalBtn.addEventListener('click', () => {
+            troubleshootModal.classList.add('hidden');
+        });
+        
+        // Retry batch processing
+        retryBatchBtn.addEventListener('click', () => {
+            troubleshootModal.classList.add('hidden');
+            batchProcessBtn.click(); // Re-open the batch processing modal
+        });
+        
+        // Update the job list in the UI
+        function updateJobList(jobs) {
+            console.log('[Batch] Updating job list with jobs:', jobs);
+            const jobList = document.getElementById('job-list');
+            if (!jobList) {
+                console.error('[Batch] job-list element not found!');
+                return;
+            }
+            jobList.innerHTML = ''; // Clear previous jobs
+            
+            if (!jobs || jobs.length === 0) {
+                console.log('[Batch] No jobs to display or jobs array is empty.');
+                jobList.innerHTML = '<li class="text-gray-500 p-3 text-center">No active processing jobs.</li>';
+                return;
+            }
+            
+            jobs.forEach(job => {
+                const jobItem = document.createElement('li');
+                jobItem.className = 'border border-gray-200 rounded p-2';
+                
+                // Set background color based on status
+                switch (job.status) {
+                    case 'completed':
+                        jobItem.classList.add('bg-green-50');
+                        break;
+                    case 'processing':
+                        jobItem.classList.add('bg-blue-50');
+                        break;
+                    case 'failed':
+                        jobItem.classList.add('bg-red-50');
+                        break;
+                    case 'queued':
+                        jobItem.classList.add('bg-gray-50');
+                        break;
+                }
+                
+                // Create a more detailed job item with additional information
+                const fileName = job.file_name || 'Unknown file';
+                const fileSize = job.file_size ? formatFileSize(job.file_size) : 'Unknown size';
+                const statusText = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+                const elapsedTime = job.start_time && job.last_updated ? 
+                    formatElapsedTime(new Date(job.start_time), new Date(job.last_updated)) : '';
+                
+                jobItem.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium truncate max-w-[140px]">${fileName}</span>
+                        <span class="text-xs px-1.5 py-0.5 rounded ${getStatusClass(job.status)}">${statusText}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1 flex justify-between">
+                        <span>${fileSize}</span>
+                        <span>${elapsedTime}</span>
+                    </div>
+                    ${job.error ? `<div class="text-xs text-red-500 mt-1 border-t border-red-100 pt-1">${job.error}</div>` : ''}
+                `;
+                
+                // Add mouseover tooltip for long filenames
+                if (fileName.length > 20) {
+                    jobItem.title = fileName;
+                }
+                
+                jobList.appendChild(jobItem);
+            });
+            console.log('[Batch] Job list updated.');
+        }
+        
+        // Format file size
+        function formatFileSize(bytes) {
+            if (!bytes) return '0 B';
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(1024));
+            return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+        }
+        
+        // Format elapsed time
+        function formatElapsedTime(startTime, endTime) {
+            const seconds = Math.floor((endTime - startTime) / 1000);
+            if (seconds < 60) return `${seconds}s`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+            return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+        }
+        
+        // Get CSS class based on job status
+        function getStatusClass(status) {
+            switch (status) {
+                case 'completed':
+                    return 'bg-green-100 text-green-800';
+                case 'processing':
+                    return 'bg-blue-100 text-blue-800';
+                case 'failed':
+                    return 'bg-red-100 text-red-800';
+                case 'queued':
+                    return 'bg-gray-100 text-gray-800';
+                default:
+                    return 'bg-gray-100 text-gray-800';
+            }
+        }
         
         // Handle drag and drop
         dropZone.addEventListener('dragover', (e) => {
@@ -466,11 +1036,13 @@
         
         // Add event listener for the "Add Context" button
         document.getElementById('add-context-btn').addEventListener('click', () => {
+            console.log('[UI] Add Context button clicked');
             showContextInput();
         });
         
         // Add event listener for the "Analyze Video" button (direct processing without context)
         document.getElementById('process-video-btn').addEventListener('click', () => {
+            console.log('[UI] Process Video button (direct) clicked');
             processVideoWithContext();
         });
         
@@ -509,13 +1081,20 @@
             document.getElementById('additional-context').value = '';
             currentVideoFile = null;
             sessionId = null;
+            console.log('[UI] Upload state reset.'); // Added log
         }
         
         // Add event listener for cancel upload button
         document.getElementById('cancel-upload-btn').addEventListener('click', resetUploadState);
         
         function processVideoWithContext() {
-            if (!currentVideoFile) return;
+            console.log('[ProcessVideo] processVideoWithContext called.'); // Added log
+            if (!currentVideoFile) {
+                console.error('[ProcessVideo] No currentVideoFile selected. Aborting.'); // Added log
+                alert('Please select a video file first.'); // User feedback
+                return;
+            }
+            console.log('[ProcessVideo] currentVideoFile:', currentVideoFile.name); // Added log
             
             const formData = new FormData();
             formData.append('video', currentVideoFile);
@@ -537,18 +1116,23 @@
             result.classList.add('hidden');
             analysisPlaceholder.classList.add('hidden');
             chatPanel.classList.add('hidden');
-            chatPlaceholder.classList.remove('hidden');
+            // chatPlaceholder.classList.remove('hidden'); // Removed this line as chatPlaceholder div was removed
             
             // Make chat panel visible in the layout
             document.getElementById('chat-side-panel').classList.remove('hidden');
             document.getElementById('chat-side-panel').classList.add('md:block');
 
+            console.log('[ProcessVideo] Initiating fetch to /upload'); // Added log
             fetch('/upload', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('[ProcessVideo] Received response from /upload'); // Added log
+                return response.json();
+            })
             .then(data => {
+                console.log('[ProcessVideo] Parsed JSON data from /upload:', data); // Added log
                 loading.classList.remove('active');
                 result.classList.remove('hidden');
                 resultActions.classList.remove('hidden');
@@ -556,10 +1140,11 @@
                 // Collapse the upload panel
                 uploadPanel.classList.add('hidden');
                 
+                // Process and display the response
                 if (data.error) {
                     analysisText.textContent = `Error: ${data.error}`;
                 } else {
-                    analysisText.textContent = data.analysis;
+                    analysisText.innerHTML = data.analysis;
                     lastAnalysisResponse = data.analysis;
                     sessionId = data.session_id; // Store the session ID
                     
@@ -567,7 +1152,7 @@
                     document.getElementById('chat-side-panel').classList.remove('hidden');
                     document.getElementById('chat-side-panel').classList.add('md:block');
                     chatPanel.classList.remove('hidden');
-                    chatPlaceholder.classList.add('hidden');
+                    // chatPlaceholder.classList.add('hidden'); // Removed this line as chatPlaceholder div was removed
                     
                     // Clear previous chat messages
                     chatMessages.innerHTML = '';
@@ -659,80 +1244,27 @@
             });
         }
         
-        function addMessage(role, content, id = '', isHtml = false) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `mb-4 ${role === 'user' ? 'self-end' : 'self-start'}`;
-            if (id) messageDiv.id = id;
+        // Add a message to the chat UI
+        function addMessage(role, content) {
+            const message = document.createElement('div');
+            message.className = `chat-message ${role}-message`;
+            
+            // Create avatar and message content
+            const avatar = document.createElement('div');
+            avatar.className = 'chat-avatar';
+            avatar.innerHTML = role === 'user' ? '<i class="fas fa-user"></i>' : '<i class="fas fa-robot"></i>';
             
             const messageContent = document.createElement('div');
-            messageContent.className = role === 'user' ? 'user-message p-3 px-4' : 'assistant-message p-3 px-4';
+            messageContent.className = 'chat-message-content';
+            // Use innerHTML to properly render HTML tags in the content
+            messageContent.innerHTML = content;
             
-            if (isHtml) {
-                messageContent.innerHTML = content;
-            } else {
-                messageContent.textContent = content;
-            }
+            // Append elements
+            message.appendChild(avatar);
+            message.appendChild(messageContent);
+            chatMessages.appendChild(message);
             
-            messageDiv.appendChild(messageContent);
-            
-            // If this is an assistant message (not a loading message), add download options
-            if (role === 'assistant' && !id) {
-                const downloadBar = document.createElement('div');
-                downloadBar.className = 'flex items-center justify-end gap-1 mt-1 transition-opacity duration-300 opacity-0';
-                downloadBar.style.fontSize = '10px'; // Extra small text
-                
-                // Add "Save" text with small icon
-                const saveText = document.createElement('span');
-                saveText.className = 'text-gray-500 mr-1';
-                saveText.textContent = 'Save:';
-                downloadBar.appendChild(saveText);
-                
-                // Add quick download buttons
-                const textBtn = document.createElement('button');
-                textBtn.className = 'text-xs text-blue-500 hover:text-blue-700 p-1';
-                textBtn.innerHTML = '<i class="fas fa-file-alt"></i>';
-                textBtn.title = 'Save as text';
-                textBtn.addEventListener('click', () => {
-                    downloadSingleMessage(content, 'text');
-                });
-                
-                const printBtn = document.createElement('button');
-                printBtn.className = 'text-xs text-red-500 hover:text-red-700 p-1';
-                printBtn.innerHTML = '<i class="fas fa-print"></i>';
-                printBtn.title = 'Print/Save as PDF';
-                printBtn.addEventListener('click', () => {
-                    downloadSingleMessage(content, 'pdf');
-                });
-                
-                const copyBtn = document.createElement('button');
-                copyBtn.className = 'text-xs text-green-500 hover:text-green-700 p-1';
-                copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
-                copyBtn.title = 'Copy to clipboard';
-                copyBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(content)
-                        .then(() => {
-                            copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-                            showToast('Response copied to clipboard');
-                            setTimeout(() => {
-                                copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
-                            }, 2000);
-                        });
-                });
-                
-                downloadBar.appendChild(textBtn);
-                downloadBar.appendChild(printBtn);
-                downloadBar.appendChild(copyBtn);
-                
-                messageDiv.appendChild(downloadBar);
-                
-                // Fade in the download bar after a short delay
-                setTimeout(() => {
-                    downloadBar.classList.remove('opacity-0');
-                    downloadBar.classList.add('opacity-100');
-                }, 500);
-            }
-            
-            chatMessages.appendChild(messageDiv);
+            // Scroll to bottom
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
         
@@ -835,7 +1367,7 @@
         
         function exportToPDF() {
             // Check if we have analysis content
-            const content = analysisText.textContent;
+            const content = analysisText.innerHTML;
             if (!content) return;
             
             // Create hidden form to submit to server
@@ -875,7 +1407,7 @@
         
         function exportToText() {
             // Check if we have analysis content
-            const content = analysisText.textContent;
+            const content = analysisText.innerHTML;
             if (!content) return;
             
             // Create a blob and download link
@@ -902,7 +1434,7 @@
         
         function copyToClipboard() {
             // Check if we have analysis content
-            const content = analysisText.textContent;
+            const content = analysisText.innerHTML;
             if (!content) return;
             
             // Use clipboard API to copy text
@@ -1006,6 +1538,757 @@
                     alert('Failed to copy to clipboard. Please try again.');
                 });
         }
+
+        // View batch results
+        viewResultsBtn.addEventListener('click', () => {
+            // Hide batch modal and show results modal
+            batchModal.classList.add('hidden');
+            batchResultsModal.classList.remove('hidden');
+            
+            // Fetch the latest batch status to get results
+            if (currentBatchId) {
+                fetchBatchResults(currentBatchId);
+            }
+        });
+        
+        // Close results modal
+        closeResultsModalBtn.addEventListener('click', () => {
+            batchResultsModal.classList.add('hidden');
+            batchModal.classList.remove('hidden'); // Show the main batch modal again
+            if (currentBatchId) {
+                // Refresh the status in the main batch modal for the current/last active batch
+                fetchBatchStatus(currentBatchId); 
+            }
+        });
+        
+        // Close modal when clicking outside
+        batchResultsModal.addEventListener('click', (e) => {
+            if (e.target === batchResultsModal) {
+                batchResultsModal.classList.add('hidden');
+                batchModal.classList.remove('hidden'); // Show the main batch modal again
+                if (currentBatchId) {
+                    // Refresh the status in the main batch modal
+                    fetchBatchStatus(currentBatchId);
+                }
+            }
+        });
+        
+        // Fetch batch results
+        function fetchBatchResults(batchId) {
+            console.log('[ResultsModal] Fetching results for Batch ID:', batchId);
+            fetch(`/batch/status/${batchId}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('[ResultsModal] Raw data from /batch/status for results:', data);
+                if (data.error) {
+                    showToast(data.error, 'error');
+                    return;
+                }
+                
+                // Ensure we are using the correct snake_case key from the server
+                const allJobs = data.job_statuses || []; 
+                console.log('[ResultsModal] All jobs from status:', allJobs);
+
+                const completedJobs = allJobs.filter(job => job.status === 'completed');
+                console.log('[ResultsModal] Filtered completed jobs:', completedJobs);
+                
+                // Populate the videos list
+                const videosList = document.getElementById('batch-videos-list');
+                if (!videosList) {
+                    console.error('[ResultsModal] videosList element not found!');
+                    return;
+                }
+                videosList.innerHTML = '';
+                
+                if (completedJobs.length === 0) {
+                    videosList.innerHTML = '<div class="text-sm text-gray-400 italic p-3">No completed videos found for this batch.</div>';
+                } else {
+                    completedJobs.forEach(job => {
+                        console.log('[ResultsModal] Processing job for list:', job); // Log each job
+                        const videoItem = document.createElement('div');
+                        videoItem.className = 'p-2 border border-gray-200 rounded cursor-pointer hover:bg-gray-50 transition-colors';
+                        
+                        // Use snake_case keys from the job object
+                        videoItem.dataset.jobId = job.id; 
+                        videoItem.dataset.analysisId = job.analysis_id; 
+                        videoItem.dataset.fileName = job.file_name;
+                        
+                        videoItem.innerHTML = `
+                            <div class="flex items-center">
+                                <i class="fas fa-video text-indigo-400 mr-2"></i>
+                                <span class="text-sm truncate">${job.file_name || 'Untitled Video'}</span>
+                            </div>
+                        `;
+                        
+                        // Add click event to view this video's analysis
+                        videoItem.addEventListener('click', () => {
+                            console.log('[ResultsModal] Clicked video item, job data:', job);
+                            document.querySelectorAll('#batch-videos-list > div').forEach(el => {
+                                el.classList.remove('bg-indigo-50', 'border-indigo-200');
+                            });
+                            videoItem.classList.add('bg-indigo-50', 'border-indigo-200');
+                            
+                            batchAnalysisPlaceholder.classList.add('hidden');
+                            batchAnalysisContent.classList.remove('hidden');
+                            batchVideoTitle.textContent = job.file_name || 'Untitled Video';
+                            batchAnalysisText.textContent = 'Loading analysis...';
+                            
+                            batchCopyBtn.disabled = true;
+                            batchExportBtn.disabled = true;
+                            
+                            if (job.analysis_id) {
+                                console.log('[ResultsModal] Fetching analysis for analysis_id:', job.analysis_id);
+                                fetchVideoAnalysis(job.analysis_id, job.file_name);
+                            } else {
+                                console.error('[ResultsModal] No analysis_id found for job:', job);
+                                batchAnalysisText.textContent = 'Analysis ID not found for this video.';
+                            }
+                        });
+                        
+                        videosList.appendChild(videoItem);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('[ResultsModal] Error in fetchBatchResults:', error);
+                showToast('Error fetching results: ' + error.message, 'error');
+            });
+        }
+        
+        // Fetch individual video analysis
+        function fetchVideoAnalysis(analysisId, fileName) {
+            // Fetch the analysis from the server
+            fetch(`/video-analysis/${analysisId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Analysis not available');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    batchAnalysisText.textContent = `Error: ${data.error}`;
+                    return;
+                }
+                
+                batchAnalysisText.innerHTML = data.analysis;
+                
+                // Enable buttons
+                batchCopyBtn.disabled = false;
+                batchExportBtn.disabled = false;
+            })
+            .catch(error => {
+                batchAnalysisText.textContent = `Analysis not available for this video: ${error.message}`;
+                // Keep buttons disabled
+                batchCopyBtn.disabled = true;
+                batchExportBtn.disabled = true;
+            });
+        }
+        
+        // Copy batch analysis
+        batchCopyBtn.addEventListener('click', () => {
+            const content = batchAnalysisText.innerHTML;
+            if (!content) return;
+            
+            navigator.clipboard.writeText(content)
+                .then(() => {
+                    showToast('Analysis copied to clipboard', 'success');
+                    
+                    // Show success indicator
+                    const originalText = batchCopyBtn.innerHTML;
+                    batchCopyBtn.innerHTML = '<i class="fas fa-check mr-1"></i> Copied';
+                    
+                    // Reset after 2 seconds
+                    setTimeout(() => {
+                        batchCopyBtn.innerHTML = originalText;
+                    }, 2000);
+                })
+                .catch(error => {
+                    showToast('Error copying to clipboard', 'error');
+                });
+        });
+        
+        // Export batch analysis
+        batchExportBtn.addEventListener('click', () => {
+            const content = batchAnalysisText.innerHTML;
+            const title = batchVideoTitle.textContent;
+            if (!content) return;
+            
+            // Create hidden form to submit to server for PDF export
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/export-pdf';
+            form.target = '_blank'; // Open in new tab
+            form.style.display = 'none';
+            
+            // Add content
+            const contentInput = document.createElement('input');
+            contentInput.type = 'hidden';
+            contentInput.name = 'content';
+            contentInput.value = content;
+            
+            // Add title
+            const titleInput = document.createElement('input');
+            titleInput.type = 'hidden';
+            titleInput.name = 'title';
+            titleInput.value = `Analysis of ${title}`;
+            
+            form.appendChild(contentInput);
+            form.appendChild(titleInput);
+            document.body.appendChild(form);
+            
+            // Submit form
+            form.submit();
+            
+            // Show success notification
+            showToast('Analysis opened for printing/saving', 'success');
+            
+            // Remove form after submission
+            setTimeout(() => {
+                document.body.removeChild(form);
+            }, 1000);
+        });
+
+        // Handle folder browsing button click
+        if (browseFolderBtn) {
+            browseFolderBtn.addEventListener('click', () => {
+                // Alert the user about the manual path entry requirement
+                alert('Due to browser security restrictions, you need to manually enter the absolute folder path.\n\nPlease enter the complete folder path containing your video files.');
+                folderPathInput.focus();
+            });
+        }
+        
+        // Handle folder drag and drop
+        if (folderDropZone) {
+            folderDropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                folderDropZone.classList.add('bg-indigo-50', 'border-indigo-300');
+            });
+            
+            folderDropZone.addEventListener('dragleave', () => {
+                folderDropZone.classList.remove('bg-indigo-50', 'border-indigo-300');
+            });
+            
+            folderDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                folderDropZone.classList.remove('bg-indigo-50', 'border-indigo-300');
+                
+                // Since browsers restrict access to the actual file path for security reasons,
+                // we can only suggest to the user to manually enter the path
+                alert('Due to browser security restrictions, we cannot directly access the dropped folder path.\n\nPlease manually enter the complete folder path containing your video files.');
+                folderPathInput.focus();
+            });
+        }
+        
+        // Quick path helper buttons
+        const userHomePath = document.getElementById('user-home-path');
+        if (userHomePath) {
+            userHomePath.addEventListener('click', () => {
+                const username = promptForUsername();
+                if (username) {
+                    folderPathInput.value = `/Users/${username}`;
+                    showToast('Home path inserted', 'success');
+                }
+            });
+        }
+        
+        const userDocumentsPath = document.getElementById('user-documents-path');
+        if (userDocumentsPath) {
+            userDocumentsPath.addEventListener('click', () => {
+                const username = promptForUsername();
+                if (username) {
+                    folderPathInput.value = `/Users/${username}/Documents`;
+                    showToast('Documents path inserted', 'success');
+                }
+            });
+        }
+        
+        const userDownloadsPath = document.getElementById('user-downloads-path');
+        if (userDownloadsPath) {
+            userDownloadsPath.addEventListener('click', () => {
+                const username = promptForUsername();
+                if (username) {
+                    folderPathInput.value = `/Users/${username}/Downloads`;
+                    showToast('Downloads path inserted', 'success');
+                }
+            });
+        }
+        
+        const userDesktopPath = document.getElementById('user-desktop-path');
+        if (userDesktopPath) {
+            userDesktopPath.addEventListener('click', () => {
+                const username = promptForUsername();
+                if (username) {
+                    folderPathInput.value = `/Users/${username}/Desktop`;
+                    showToast('Desktop path inserted', 'success');
+                }
+            });
+        }
+
+        // Batch processing - Multiple file selection
+        const batchDropZone = document.getElementById('batch-drop-zone');
+        const batchFileInput = document.getElementById('batch-file-input');
+        const batchBrowseBtn = document.getElementById('batch-browse-btn');
+        const selectedFilesContainer = document.getElementById('selected-files-container');
+        const selectedFilesList = document.getElementById('selected-files-list');
+        const selectedFilesCount = document.getElementById('selected-files-count');
+        const clearFilesBtn = document.getElementById('clear-files-btn');
+        
+        let batchFiles = []; // Array to hold selected files
+        
+        // Handle browse button click
+        if (batchBrowseBtn) {
+            batchBrowseBtn.addEventListener('click', () => {
+                if (batchFileInput) {
+                    batchFileInput.click();
+                }
+            });
+        }
+        
+        // Handle file selection
+        if (batchFileInput) {
+            batchFileInput.addEventListener('change', (e) => {
+                handleSelectedFiles(e.target.files);
+            });
+        }
+        
+        // Handle drag and drop
+        if (batchDropZone) {
+            batchDropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                batchDropZone.classList.add('bg-gray-100', 'border-indigo-300');
+            });
+            
+            batchDropZone.addEventListener('dragleave', () => {
+                batchDropZone.classList.remove('bg-gray-100', 'border-indigo-300');
+            });
+            
+            batchDropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                batchDropZone.classList.remove('bg-gray-100', 'border-indigo-300');
+                
+                // Get dropped files
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    handleSelectedFiles(e.dataTransfer.files);
+                }
+            });
+        }
+        
+        // Handle clear files button
+        if (clearFilesBtn) {
+            clearFilesBtn.addEventListener('click', () => {
+                batchFiles = [];
+                updateSelectedFilesList();
+                if (batchFileInput) {
+                    batchFileInput.value = '';
+                }
+            });
+        }
+        
+        // Process selected files
+        function handleSelectedFiles(files) {
+            if (!files || files.length === 0) return;
+            
+            // Filter for video files
+            const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv'];
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+                
+                if (videoExtensions.includes(fileExt)) {
+                    // Check if file already exists in the array
+                    const exists = batchFiles.some(f => f.name === file.name && f.size === file.size);
+                    if (!exists) {
+                        batchFiles.push(file);
+                    }
+                }
+            }
+            
+            updateSelectedFilesList();
+        }
+        
+        // Update the selected files list in the UI
+        function updateSelectedFilesList() {
+            if (batchFiles.length > 0) {
+                if (selectedFilesContainer) {
+                    selectedFilesContainer.classList.remove('hidden');
+                }
+                if (selectedFilesCount) {
+                    selectedFilesCount.textContent = batchFiles.length;
+                }
+                
+                // Clear existing list
+                if (selectedFilesList) {
+                    selectedFilesList.innerHTML = '';
+                    
+                    // Add each file to the list
+                    batchFiles.forEach((file, index) => {
+                        const fileItem = document.createElement('div');
+                        fileItem.className = 'flex justify-between items-center py-1';
+                        
+                        const fileName = document.createElement('span');
+                        fileName.className = 'truncate max-w-[200px]';
+                        fileName.textContent = file.name;
+                        
+                        const fileSize = document.createElement('span');
+                        fileSize.className = 'text-gray-500 ml-2';
+                        fileSize.textContent = formatFileSize(file.size);
+                        
+                        const removeBtn = document.createElement('button');
+                        removeBtn.className = 'text-red-500 hover:text-red-700 ml-2';
+                        removeBtn.innerHTML = '<i class="fas fa-times"></i>';
+                        removeBtn.addEventListener('click', () => {
+                            batchFiles.splice(index, 1);
+                            updateSelectedFilesList();
+                        });
+                        
+                        const fileInfo = document.createElement('div');
+                        fileInfo.className = 'flex items-center';
+                        fileInfo.appendChild(fileName);
+                        fileInfo.appendChild(fileSize);
+                        
+                        fileItem.appendChild(fileInfo);
+                        fileItem.appendChild(removeBtn);
+                        
+                        selectedFilesList.appendChild(fileItem);
+                    });
+                }
+                
+                // Update the start button state
+                if (startBatchBtn) {
+                    startBatchBtn.disabled = false;
+                }
+            } else {
+                if (selectedFilesContainer) {
+                    selectedFilesContainer.classList.remove('hidden');
+                }
+                if (selectedFilesCount) {
+                    selectedFilesCount.textContent = '0';
+                }
+                
+                // Show a message when no files are selected
+                if (selectedFilesList) {
+                    selectedFilesList.innerHTML = '<div class="py-2 text-gray-500 text-center"><i class="fas fa-info-circle mr-1"></i> No files selected</div>';
+                }
+                
+                if (startBatchBtn) {
+                    startBatchBtn.disabled = true;
+                }
+            }
+        }
+        
+        // Update start batch button to handle file uploads
+        if (startBatchBtn) {
+            startBatchBtn.addEventListener('click', () => {
+                if (batchFiles.length === 0) {
+                    showToast('Please select at least one video file', 'error');
+                    return;
+                }
+                
+                if (batchFiles.length > MaxConcurrentUploads) {
+                    showToast(`Maximum ${MaxConcurrentUploads} files can be processed at once`, 'error');
+                    return;
+                }
+                
+                // Disable button to prevent multiple submissions
+                startBatchBtn.disabled = true;
+                startBatchBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-1"></i> Processing...';
+                
+                // First check if the batch service is running
+                fetch('/batch/status')
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Service check failed: ${response.status} ${response.statusText}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.status !== 'running') {
+                            const errorMsg = `Batch processing service is not available. ${data.error || ''}`;
+                            console.error(errorMsg);
+                            showTroubleshootingModal(errorMsg);
+                            throw new Error(errorMsg);
+                        }
+                        
+                        // Create a FormData instance for the file upload
+                        const formData = new FormData();
+                        
+                        // Add each file to the form
+                        batchFiles.forEach(file => {
+                            formData.append('videos', file);
+                        });
+                        
+                        // Add cleanup option
+                        const cleanupCheckbox = document.getElementById('cleanup-files');
+                        if (cleanupCheckbox) {
+                            formData.append('cleanup', cleanupCheckbox.checked);
+                        }
+                        
+                        // Send request to batch-upload endpoint
+                        return fetch('/batch/batch-upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(text => {
+                                try {
+                                    const errorData = JSON.parse(text);
+                                    throw new Error(`Server error (${response.status}): ${errorData.error || text}`);
+                                } catch (e) {
+                                    throw new Error(`Server error (${response.status}): ${text || 'Unknown error'}`);
+                                }
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('[Batch] Raw data from /batch/batch-upload:', data); 
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+
+                        const numSubmittedFiles = batchFiles.length; 
+
+                        // Show batch status section
+                        if (batchStatusSection) {
+                            batchStatusSection.classList.remove('hidden');
+                        }
+                        
+                        // Store batch ID and update UI
+                        currentBatchId = data.batch_id; // Use snake_case
+                        
+                        // Update UI elements if they exist
+                        const elementsToUpdate = {
+                            'batch-id': data.batch_id,                 // Use snake_case
+                            'total-videos': data.total_jobs,            // Use snake_case (assuming this key exists)
+                            'completed-count': data.completed_jobs,     // Use snake_case
+                            'in-progress-count': data.in_progress_jobs, // Use snake_case
+                            'queued-count': data.queued_jobs,           // Use snake_case
+                            'failed-count': data.failed_jobs             // Use snake_case
+                        };
+                        
+                        Object.entries(elementsToUpdate).forEach(([id, value]) => {
+                            const element = document.getElementById(id);
+                            if (element) {
+                                // Ensure value is not undefined before setting, default to 0 or N/A if appropriate
+                                element.textContent = value !== undefined ? value : (id === 'batch-id' ? 'N/A' : '0');
+                            }
+                        });
+                        
+                        // Update job list
+                        updateJobList(data.job_statuses); // Use snake_case
+                        
+                        // Start polling for status updates
+                        startStatusPolling();
+                        
+                        showToast('Batch processing started', 'success');
+
+                        // --- Success UI Update --- 
+                        const originalH4 = document.getElementById('selected-files-count')?.parentElement?.parentElement;
+                        const filesListDiv = document.getElementById('selected-files-list');
+                        let tempSuccessH4 = null;
+
+                        if (originalH4) {
+                            originalH4.style.display = 'none'; // Hide original H4
+                            tempSuccessH4 = document.createElement('h4');
+                            tempSuccessH4.className = 'text-sm font-medium mb-2 text-green-700 py-1'; // Matched styling + success color
+                            tempSuccessH4.innerHTML = `<i class="fas fa-check-circle mr-1"></i> ${numSubmittedFiles} file(s) submitted successfully!`;
+                            if (selectedFilesContainer) { // Insert into the container
+                                selectedFilesContainer.insertBefore(tempSuccessH4, selectedFilesContainer.firstChild);
+                            }
+                        }
+
+                        if (filesListDiv) {
+                            filesListDiv.innerHTML = ''; 
+                            filesListDiv.style.display = 'none'; 
+                        }
+
+                        if (selectedFilesContainer) {
+                            selectedFilesContainer.style.transition = 'background-color 0.3s ease';
+                            selectedFilesContainer.style.backgroundColor = '#e6f7ef'; // Light green
+                        }
+
+                        batchFiles = []; // Clear internal list now
+                        if (batchFileInput) {
+                            batchFileInput.value = '';
+                        }
+
+                        setTimeout(() => {
+                            if (tempSuccessH4) {
+                                tempSuccessH4.remove(); 
+                            }
+                            if (originalH4) {
+                                originalH4.style.display = 'flex'; // Restore original H4 display
+                            }
+                            if (filesListDiv) {
+                                filesListDiv.style.display = ''; // Restore files list div
+                            }
+                            if (selectedFilesContainer) {
+                                selectedFilesContainer.style.backgroundColor = ''; // Reset background
+                            }
+                            updateSelectedFilesList(); // This will show "Selected Files (0)" and "No files selected"
+                        }, 4000); // Success state visible for 4 seconds
+                        // --- End Success UI Update ---
+
+                    })
+                    .catch(error => {
+                        console.error('Batch processing error:', error);
+                        showToast(`Error: ${error.message}`, 'error');
+                        
+                        // Show troubleshooting modal for serious errors
+                        if (error.message.includes('service is not available')) {
+                            showTroubleshootingModal(error.message);
+                        }
+                    })
+                    .finally(() => {
+                        if (startBatchBtn) {
+                            startBatchBtn.disabled = false;
+                            startBatchBtn.innerHTML = 'Start Processing';
+                        }
+                    });
+            });
+        }
+        
+        // Helper constants
+        const MaxConcurrentUploads = 15; // Matches the server-side limit
+        
+        // Add a listener for the "How to Check Files" button
+        const checkFolderBtn = document.getElementById('check-folder-btn');
+        if (checkFolderBtn) {
+            checkFolderBtn.addEventListener('click', () => {
+                const commandExample = navigator.platform.indexOf('Win') > -1 ? 
+                    'dir /b /s "C:\\path\\to\\folder\\*.mp4"' :
+                    'find /path/to/folder -name "*.mp4" -o -name "*.mov" -o -name "*.avi" -o -name "*.mkv"';
+                
+                alert(`To check video files in a folder, you can use this command in terminal:\n\n${commandExample}\n\nThis will list all video files with the supported extensions.`);
+            });
+        }
+        
+        // Add a listener for the "Check File Type" button
+        const checkFileTypeBtn = document.getElementById('check-file-type-btn');
+        if (checkFileTypeBtn) {
+            checkFileTypeBtn.addEventListener('click', () => {
+                alert('This application supports the following video formats:\n\n• .mp4 - MPEG-4 Part 14 (common format)\n• .mov - QuickTime File Format\n• .avi - Audio Video Interleave\n• .mkv - Matroska Video\n\nEnsure your video files have one of these extensions for processing.');
+            });
+        }
+        
+        // Helper function to prompt for username
+        function promptForUsername() {
+            // Try to get username from existing path if possible
+            let existingUsername = '';
+            const currentPath = folderPathInput.value;
+            
+            if (currentPath.includes('/Users/')) {
+                const match = currentPath.match(/\/Users\/([^\/]+)/);
+                if (match && match[1]) {
+                    existingUsername = match[1];
+                }
+            }
+            
+            // Get username from current path or prompt user
+            return existingUsername || prompt('Please enter your macOS username:');
+        }
+        
+        // Helper function to format file sizes
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        const exportTextBtn = document.getElementById('export-text');
+        const copyClipboardBtn = document.getElementById('copy-clipboard');
+        const resultActionsDiv = document.getElementById('result-actions');
+        const backToUploadBtn = document.getElementById('back-to-upload');
+
+        // Handle back to upload button
+        if (backToUploadBtn) {
+            backToUploadBtn.addEventListener('click', () => {
+                // Hide result section
+                if (resultDiv) {
+                    resultDiv.classList.add('hidden');
+                }
+
+                // Show placeholder
+                if (analysisPlaceholder) {
+                    analysisPlaceholder.classList.remove('hidden');
+                }
+
+                // Show upload panel
+                if (uploadPanel) {
+                    uploadPanel.classList.remove('w-[50px]');
+                    uploadPanel.classList.add('w-[180px]');
+                }
+
+                // Show upload container, hide loading and options
+                if (uploadContainer) {
+                    uploadContainer.classList.remove('hidden');
+                }
+                if (uploadOptions) {
+                    uploadOptions.classList.add('hidden');
+                }
+                if (loading) {
+                    loading.classList.remove('active');
+                }
+
+                // Hide action buttons
+                if (resultActionsDiv) {
+                    resultActionsDiv.classList.add('hidden');
+                }
+
+                // Hide chat panel
+                if (chatPanel) {
+                    chatPanel.classList.add('hidden');
+                }
+
+                // Reset video input
+                if (videoInput) {
+                    videoInput.value = '';
+                }
+
+                showToast('Ready for a new upload', 'success');
+            });
+        }
+
+        // For copy analysis functionality
+        document.getElementById('copy-analysis').addEventListener('click', function() {
+            // Check if we have analysis content
+            const content = analysisText.innerHTML;
+            if (!content || content.trim() === '') {
+                showToast('No analysis content to copy', 'error');
+                return;
+            }
+            
+            navigator.clipboard.writeText(content)
+                .then(() => {
+                    showToast('Analysis copied to clipboard');
+                })
+                .catch(err => {
+                    console.error('Error copying text:', err);
+                    showToast('Failed to copy to clipboard', 'error');
+                });
+        });
+
+        // For batch copy analysis
+        document.getElementById('batch-copy-analysis').addEventListener('click', function() {
+            const content = batchAnalysisText.innerHTML;
+            
+            navigator.clipboard.writeText(content)
+                .then(() => {
+                    showToast('Analysis copied to clipboard', 'success');
+                })
+                .catch(err => {
+                    console.error('Error copying text:', err);
+                    showToast('Failed to copy to clipboard', 'error');
+                });
+        });
     </script>
 </body>
 </html> 

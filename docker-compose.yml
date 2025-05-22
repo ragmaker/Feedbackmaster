@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "7081:7081"
+    environment:
+      - FLASK_ENV=production
+      - FLASK_APP=app.py
+      - REDIS_HOST=redis
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PORT=7081
+    volumes:
+      - ./uploads:/app/uploads
+      - ./templates:/app/templates
+    depends_on:
+      - redis
+
+  batch-processor:
+    build: ./batch-processor
+    restart: unless-stopped
+    ports:
+      - "7082:7082"
+    environment:
+      - APP_SERVICE_URL=http://web:7081/upload
+      - PORT=7082
+    volumes:
+      - ./uploads:/app/uploads
+    depends_on:
+      - web
+
+  nginx:
+    build: ./nginx
+    restart: unless-stopped
+    ports:
+      - "7080:80"
+    depends_on:
+      - web
+      - batch-processor
+
+  redis:
+    image: "redis:alpine"
+    restart: unless-stopped
+    volumes:
+      - ./redis_data:/data  # bind-mount host folder for persistence and more space
+    # Use append-only mode for data persistence
+    command: ["redis-server", "--appendonly", "yes"]
+
+volumes:
+  redis_data: 

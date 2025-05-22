@@ -6,3 +6,9 @@ flask-cors==4.0.0
 opencv-python==4.9.0.80
 pillow==10.0.0
 numpy==1.26.4
+pandas
+openpyxl
+redis==5.0.4
+Flask-Session==0.6.0
+requests==2.31.0
+gunicorn==21.2.0
