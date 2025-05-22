@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.venv/
+ENV/
+env/
+
+# Instance folder (Flask)
+instance/
+.webassets-cache/
+
+# Runtime files
+*.log
+*.pot
+*.sqlite3
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Uploads directory - contains generated content/temporary files
+uploads/
+
+# IDE / Editor specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# dotenv
+.env
+
+# Batch processor (Go sub-project)
+batch-processor/ 
